@@ -141,21 +141,50 @@ expect {
 
     send "\r"
 
-    # Probe the ControlMaster directly; if it is running, auth succeeded.
-    exec sleep 2
-    set probe_status [catch { exec ssh -O check $server 2>/dev/null } probe_output]
-    set auth_ok [ssh_probe_succeeded $probe_status $probe_output]
-
-    puts "\n"
-    if {$auth_ok} {
-      log 0 "  → SSH session ready. You're in.\n\n"
-    } else {
-      log 0 "  → Auth may have failed or connection not ready.\n"
-      log 0 "  Check browser and try again, or press Enter in the session.\n\n"
+    # Wait for SSH to tell us how it went instead of guessing with a timer:
+    #   - success: ssh -f backgrounds itself after auth and closes the pty -> eof
+    #   - failure: the server prints a fresh "Authenticate with PIN ..." prompt
+    log 1 "  Waiting for Torch to confirm the login...\n"
+    set timeout 120
+    set result timeout
+    set newpin ""
+    expect {
+      -re {Authenticate with PIN ([A-Za-z0-9]+)} {
+        set result retry
+        set newpin [string trim $expect_out(1,string)]
+      }
+      eof { set result eof }
+      timeout { set result timeout }
     }
 
-    log_user 1
-    interact
+    set auth_ok 0
+    if {$result eq "eof"} {
+      # Confirm the shared connection is really up (give it a few seconds).
+      for {set k 0} {$k < 10} {incr k} {
+        set probe_status [catch { exec ssh -O check $server 2>/dev/null } probe_output]
+        if {[ssh_probe_succeeded $probe_status $probe_output]} { set auth_ok 1; break }
+        exec sleep 1
+      }
+    }
+
+    puts ""
+    if {$auth_ok} {
+      log 0 "  → SSH session ready. You're in.\n\n"
+      exit 0
+    } elseif {$result eq "retry"} {
+      copy_pin $newpin
+      log 0 "  → Browser login wasn't finished in time. New PIN: $newpin (copied to clipboard).\n"
+      log 0 "  Enter it at https://login.microsoft.com/device, then press Enter here.\n\n"
+      log_user 1
+      interact
+    } elseif {$result eq "eof"} {
+      log 0 "  → SSH exited but no shared connection was found. Run ignite again.\n\n"
+      exit 1
+    } else {
+      log 0 "  → No answer from Torch after 120s. Finish the browser login, then press Enter here.\n\n"
+      log_user 1
+      interact
+    }
   }
 
   eof {
