@@ -12,6 +12,7 @@ Hours of uninterrupted access to **NYU Torch** from your terminal and IDE.
 
 - `ignite` now waits for SSH to report the login result instead of guessing with a timer: success is detected when SSH backgrounds itself, and an unfinished browser login is detected when Torch prints a new PIN (which is copied to the clipboard for you). This fixes false "Auth may have failed" messages when Torch is slow to confirm.
 - SSH config: dropped `ForwardAgent yes` (not needed, and it exposes your SSH agent on a shared login node) and the duplicate `ServerAliveInterval`; explained why host-key checking is off.
+- Removed `ignite-sh` (the password + Duo variant for NYU Shanghai / other HPCs) and its guide `NYUSHHPC.md`; this fork is Torch-only.
 - README defaults now match the script; added troubleshooting for issues hit in practice (host key changes, an already-running connection, macOS Accessibility, VS Code server installs on Torch).
 
 ## Platforms
